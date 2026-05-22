@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON PONG // EVOLUTION</title>
+    <style>
+        :root {
+            --bg-color: #06060c;
+            --panel-bg: rgba(12, 12, 26, 0.85);
+            --text-main: #ffffff;
+            --text-muted: #6b6b85;
+            --neon-cyan: #00f0ff;
+            --neon-magenta: #ff0055;
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: var(--font-stack);
+            color: var(--text-main);
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            max-width: 900px;
+            max-height: 550px;
+            background: radial-gradient(circle at center, #0f0f26 0%, #030308 100%);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
+            border-radius: 16px;
+        }
+
+        /* UI Screens Overlay Management */
+        .ui-layer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            max-width: 900px;
+            height: 100%;
+            max-height: 550px;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 20px;
+        }
+
+        .screen {
+            width: 100%;
+            max-width: 440px;
+            background: var(--panel-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 40px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: auto;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                        transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+
+        .screen.active {
+            display: flex;
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            background: linear-gradient(45deg, var(--neon-cyan), var(--neon-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 10px rgba(0, 240, 255, 0.2));
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 35px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-main);
+            padding: 16px 36px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            outline: none;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover, .btn:active {
+            transform: translateY(-2px);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.35);
+            background: rgba(0, 240, 255, 0.08);
+        }
+
+        /* Heads Up Display */
+        #hud {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 60px;
+            pointer-events: none;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .score-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .score-label {
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .score-val {
+            font-size: 3.5rem;
+            font-weight: 900;
+            font-family: monospace;
+            line-height: 1;
+        }
+
+        #score-player { color: var(--neon-cyan); text-shadow: 0 0 15px rgba(0, 240, 255, 0.3); }
+        #score-ai { color: var(--neon-magenta); text-shadow: 0 0 15px rgba(255, 0, 85, 0.3); }
+
+        #match-rally {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--text-main);
+            background: rgba(255,255,255,0.05);
+            padding: 6px 16px;
+            border-radius: 20px;
+            align-self: flex-start;
+            margin-top: 15px;
+            font-family: monospace;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* End Game Stat Layouts */
+        .stats-grid {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.95rem;
+        }
+
+        .stat-label { color: var(--text-muted); }
+        .stat-value { font-weight: 700; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="hud">
+            <div class="score-wrapper">
+                <span class="score-label">Player (You)</span>
+                <span id="score-player" class="score-val">0</span>
+            </div>
+            <div id="match-rally">Rally: 0</div>
+            <div class="score-wrapper">
+                <span class="score-label">Cyber AI</span>
+                <span id="score-ai" class="score-val">0</span>
+            </div>
+        </div>
+
+        <div class="ui-layer">
+            <div id="menu-screen" class="screen active">
+                <h1>Neon Pong</h1>
+                <div class="subtitle">AI Evolution Duel</div>
+                <button class="btn" id="start-btn">Launch System</button>
+            </div>
+
+            <div id="gameover-screen" class="screen">
+                <h1 id="match-result">Victory</h1>
+                <div class="subtitle" id="match-sub">System Decoupled</div>
+                
+                <div class="stats-grid">
+                    <div class="stat-row">
+                        <span class="stat-label">Final Score Matrix</span>
+                        <span id="stat-final-score" class="stat-value" style="color:var(--neon-cyan)">0 - 0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Peak Match Rally</span>
+                        <span id="stat-max-rally" class="stat-value">0</span>
+                    </div>
+                </div>
+
+                <button class="btn" id="restart-btn">Re-Initialize</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME DESIGN ENGINE OBJECT STRUCTURE MATRIX ---
+        const States = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover' };
+        
+        const Config = {
+            virtualWidth: 900,       // Absolute logical frame coordination targets
+            virtualHeight: 550,
+            paddleWidth: 14,
+            paddleHeight: 90,
+            ballSize: 12,
+            playerSpeed: 9,
+            aiBaseSpeed: 5.5,        // Base rate speed step allocation for AI paddle tracking
+            aiMaxSpeed: 9.5,         // Hard scalar tracking clamp velocity limit
+            ballStartSpeed: 6.5,
+            ballMaxSpeed: 16.5,
+            winningScore: 7
+        };
+
+        class Game {
+            constructor() {
+                this.state = States.MENU;
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Trackable Metric Engines
+                this.scorePlayer = 0;
+                this.scoreAI = 0;
+                this.rallyCount = 0;
+                this.maxRally = 0;
+
+                // Entity Setup Parameters
+                this.playerY = Config.virtualHeight / 2 - Config.paddleHeight / 2;
+                this.aiY = Config.virtualHeight / 2 - Config.paddleHeight / 2;
+                this.ball = { x: 0, y: 0, vx: 0, vy: 0, speed: 0 };
+                
+                // Adaptive AI Dynamic Parameter Trackers
+                this.aiTargetY = this.aiY;
+                this.aiReactionTimer = 0;
+
+                // Visual FX Container Frameworks
+                this.particles = [];
+                this.shakeIntensity = 0;
+                this.flashIntensity = 0;
+
+                // Engine Input States
+                this.keys = {};
+                this.touchY = null;
+
+                this.initCanvasBounds();
+                this.bindInputs();
+                
+                // Start requestAnimationFrame pipeline loop Execution
+                this.lastTime = performance.now();
+                requestAnimationFrame((t) => this.loop(t));
+            }
+
+            initCanvasBounds() {
+                const dpr = window.devicePixelRatio || 1;
+                let w = Math.min(window.innerWidth, 900);
+                let h = (w * 550) / 900;
+                
+                // Enforce proper landscape bounds layout logic safely
+                if (h > window.innerHeight) {
+                    h = Math.min(window.innerHeight, 550);
+                    w = (h * 900) / 550;
+                }
+
+                this.canvas.width = w * dpr;
+                this.canvas.height = h * dpr;
+                this.ctx.scale(dpr, dpr);
+                
+                this.scaleFactor = w / Config.virtualWidth;
+                this.logicalWidth = w;
+                this.logicalHeight = h;
+            }
+
+            bindInputs() {
+                window.addEventListener('resize', () => this.initCanvasBounds());
+                
+                // Standard desktop directional inputs tracking hooks
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.key] = true;
+                    // Prevent standard space / arrow page scrolls safely while playing
+                    if(["Space", "ArrowUp", "ArrowDown", "KeyW", "KeyS"].includes(e.code) && this.state === States.PLAYING) {
+                        e.preventDefault();
+                    }
+                });
+                window.addEventListener('keyup', (e) => this.keys[e.key] = false);
+
+                // Pure touch control handling translation interfaces
+                this.canvas.addEventListener('touchstart', (e) => {
+                    if (e.touches.length > 0) this.touchY = e.touches[0].clientY;
+                }, { passive: true });
+
+                this.canvas.addEventListener('touchmove', (e) => {
+                    if (e.touches.length > 0 && this.state === States.PLAYING) {
+                        const currentTouchY = e.touches[0].clientY;
+                        const deltaY = (currentTouchY - this.touchY) / this.scaleFactor;
+                        this.touchY = currentTouchY;
+                        
+                        this.playerY += deltaY;
+                        this.playerY = Math.max(0, Math.min(Config.virtualHeight - Config.paddleHeight, this.playerY));
+                    }
+                }, { passive: true });
+
+                // Interactive UI Menu Elements bindings
+                document.getElementById('start-btn').addEventListener('click', () => this.startMatch());
+                document.getElementById('restart-btn').addEventListener('click', () => this.startMatch());
+            }
+
+            switchState(newState) {
+                this.state = newState;
+                document.getElementById('menu-screen').classList.toggle('active', newState === States.MENU);
+                document.getElementById('gameover-screen').classList.toggle('active', newState === States.GAMEOVER);
+                document.getElementById('hud').style.opacity = newState === States.PLAYING ? '1' : '0';
+            }
+
+            startMatch() {
+                this.scorePlayer = 0;
+                this.scoreAI = 0;
+                this.rallyCount = 0;
+                this.maxRally = 0;
+                this.playerY = Config.virtualHeight / 2 - Config.paddleHeight / 2;
+                this.aiY = Config.virtualHeight / 2 - Config.paddleHeight / 2;
+                
+                this.updateHUD();
+                this.serveBall(1); // Serve first towards player side profile path
+                this.switchState(States.PLAYING);
+            }
+
+            serveBall(directionSign) {
+                this.ball.x = Config.virtualWidth / 2;
+                this.ball.y = Config.virtualHeight / 2;
+                this.ball.speed = Config.ballStartSpeed;
+                
+                // Random angle mapping bounded within tight horizontal launch spreads
+                const angle = (Math.random() - 0.5) * (Math.PI / 4);
+                this.ball.vx = directionSign * this.ball.speed * Math.cos(angle);
+                this.ball.vy = this.ball.speed * Math.sin(angle);
+                
+                this.rallyCount = 0;
+                document.getElementById('match-rally').innerText = `Rally: ${this.rallyCount}`;
+            }
+
+            update(dt) {
+                // Dim down cosmetic overlays step calculations
+                if (this.shakeIntensity > 0) this.shakeIntensity *= 0.88;
+                if (this.flashIntensity > 0) this.flashIntensity -= 0.015;
+
+                // Process internal active structural sparks matrices
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= p.decay;
+                    if (p.alpha <= 0) this.particles.splice(i, 1);
+                }
+
+                if (this.state !== States.PLAYING) return;
+
+                // --- PLAYER PADDLE INTERPOLATION TRACKING LOOPS ---
+                if (this.keys['ArrowUp'] || this.keys['w'] || this.keys['W']) this.playerY -= Config.playerSpeed;
+                if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) this.playerY += Config.playerSpeed;
+                this.playerY = Math.max(0, Math.min(Config.virtualHeight - Config.paddleHeight, this.playerY));
+
+                // --- CYBER AI LOGIC SIMULATION SYSTEM ENGINE ---
+                this.aiReactionTimer -= dt;
+                if (this.aiReactionTimer <= 0) {
+                    // Inject a light response delay buffer layer simulation periodically
+                    this.aiReactionTimer = Math.random() * 80 + 30; 
+                    
+                    if (this.ball.vx > 0) {
+                        // If ball tracks towards AI, calculate intercept offset trajectory paths
+                        const noise = (Math.random() - 0.5) * (Config.paddleHeight * 0.65);
+                        this.aiTargetY = this.ball.y - Config.paddleHeight / 2 + noise;
+                    } else {
+                        // Move gracefully back towards center horizontal layout points if ball targets player side
+                        this.aiTargetY = Config.virtualHeight / 2 - Config.paddleHeight / 2;
+                    }
+                }
+
+                // Smoothly map speed thresholds dynamically bound to current ball execution step rates
+                const currentAiRampSpeed = Config.aiBaseSpeed + (this.ball.speed * 0.12);
+                const maxAllowedAiSpeed = Math.min(Config.aiMaxSpeed, currentAiRampSpeed);
+                const diffY = this.aiTargetY - this.aiY;
+                
+                this.aiY += Math.sign(diffY) * Math.min(Math.abs(diffY), maxAllowedAiSpeed);
+                this.aiY = Math.max(0, Math.min(Config.virtualHeight - Config.paddleHeight, this.aiY));
+
+                // --- PHYSICS BALL TRANSLATION MECHANICS ---
+                let b = this.ball;
+                b.x += b.vx;
+                b.y += b.vy;
+
+                // Floor / Ceiling hard reflection checks
+                if (b.y <= 0) {
+                    b.y = 0;
+                    b.vy *= -1;
+                    this.triggerImpactFx(b.x, b.y, '#ffffff', 4, 0.05);
+                } else if (b.y >= Config.virtualHeight - Config.ballSize) {
+                    b.y = Config.virtualHeight - Config.ballSize;
+                    b.vy *= -1;
+                    this.triggerImpactFx(b.x, b.y, '#ffffff', 4, 0.05);
+                }
+
+                // --- PLAYER PADDLE COLLISION CHECK (LEFT SIDE) ---
+                if (b.vx < 0 && b.x <= 35 && b.x >= 15) {
+                    if (b.y + Config.ballSize >= this.playerY && b.y <= this.playerY + Config.paddleHeight) {
+                        this.handlePaddleBounce(this.playerY, 1);
+                    }
+                }
+
+                // --- AI PADDLE COLLISION CHECK (RIGHT SIDE) ---
+                if (b.vx > 0 && b.x >= Config.virtualWidth - 35 - Config.ballSize && b.x <= Config.virtualWidth - 15) {
+                    if (b.y + Config.ballSize >= this.aiY && b.y <= this.aiY + Config.paddleHeight) {
+                        this.handlePaddleBounce(this.aiY, -1);
+                    }
+                }
+
+                // --- OUT OF BOUNDS POINT SCORING EVENTS ---
+                if (b.x < 0) {
+                    this.scoreAI++;
+                    this.handleScoreEvent(-1);
+                } else if (b.x > Config.virtualWidth) {
+                    this.scorePlayer++;
+                    this.handleScoreEvent(1);
+                }
+            }
+
+            handlePaddleBounce(paddleY, directionSign) {
+                let b = this.ball;
+                this.rallyCount++;
+                if (this.rallyCount > this.maxRally) this.maxRally = this.rallyCount;
+                document.getElementById('match-rally').innerText = `Rally: ${this.rallyCount}`;
+
+                // Calculate relative intersection angle distribution metrics
+                const relativeIntersectY = (paddleY + (Config.paddleHeight / 2)) - (b.y + Config.ballSize / 2);
+                const normalizedIntersectY = relativeIntersectY / (Config.paddleHeight / 2);
+                const bounceAngle = normalizedIntersectY * (Math.PI / 3); // Maximum 60-degree deflection angle profile bounds
+
+                // Ramp overall physics vectors up on each subsequent hit block
+                b.speed = Math.min(Config.ballMaxSpeed, b.speed + 0.6);
+                b.vx = directionSign * b.speed * Math.cos(bounceAngle);
+                b.vy = b.speed * -Math.sin(bounceAngle);
+
+                // Explode tailored particle spectrum themes matching side profiles (Fixed: direct hex strings)
+                const sideColor = directionSign > 0 ? '#00f0ff' : '#ff0055';
+                this.triggerImpactFx(b.x + (directionSign > 0 ? 0 : Config.ballSize), b.y + Config.ballSize/2, sideColor, 16, 0.15);
+                this.shakeIntensity = 6;
+            }
+
+            handleScoreEvent(winnerSign) {
+                this.updateHUD();
+                
+                // Terminal Point Impact Visual Explosion configurations (Fixed: direct hex strings)
+                this.shakeIntensity = 18;
+                this.flashIntensity = 0.35;
+                this.triggerImpactFx(this.ball.x, this.ball.y, winnerSign > 0 ? '#00f0ff' : '#ff0055', 30, 0.4);
+
+                if (this.scorePlayer >= Config.winningScore || this.scoreAI >= Config.winningScore) {
+                    setTimeout(() => this.triggerGameOver(this.scorePlayer >= Config.winningScore), 500);
+                } else {
+                    // Re-serve directly back towards the scoring target opponent setup profile
+                    setTimeout(() => this.serveBall(-winnerSign), 800);
+                }
+            }
+
+            triggerImpactFx(x, y, color, count, flashIncrement = 0) {
+                if (flashIncrement > 0) this.flashIntensity = Math.min(0.5, this.flashIntensity + flashIncrement);
+                
+                for (let i = 0; i < count; i++) {
+                    this.particles.push({
+                        x: x,
+                        y: y,
+                        vx: (Math.random() - 0.5) * 11,
+                        vy: (Math.random() - 0.5) * 11,
+                        size: Math.random() * 3.5 + 2,
+                        color: color,
+                        alpha: 1,
+                        decay: Math.random() * 0.035 + 0.015
+                    });
+                }
+            }
+
+            updateHUD() {
+                document.getElementById('score-player').innerText = this.scorePlayer;
+                document.getElementById('score-ai').innerText = this.scoreAI;
+            }
+
+            triggerGameOver(playerWon) {
+                this.switchState(States.GAMEOVER);
+                
+                const titleEl = document.getElementById('match-result');
+                const subEl = document.getElementById('match-sub');
+                
+                if (playerWon) {
+                    titleEl.innerText = "Victory Achieved";
+                    titleEl.style.background = "linear-gradient(45deg, var(--neon-cyan), #00ff66)";
+                    titleEl.style.webkitBackgroundClip = "text";
+                    subEl.innerText = "System Defeated Successfully";
+                } else {
+                    titleEl.innerText = "System Overload";
+                    titleEl.style.background = "linear-gradient(45deg, var(--neon-magenta), #ff5500)";
+                    titleEl.style.webkitBackgroundClip = "text";
+                    subEl.innerText = "AI Synchronization Overruled CPU";
+                }
+
+                document.getElementById('stat-final-score').innerText = `${this.scorePlayer} - ${this.scoreAI}`;
+                document.getElementById('stat-max-rally').innerText = this.maxRally;
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, Config.virtualWidth, Config.virtualHeight);
+                this.ctx.save();
+
+                // Inject active Screen Shake translations
+                if (this.shakeIntensity > 0) {
+                    const dx = (Math.random() - 0.5) * this.shakeIntensity;
+                    const dy = (Math.random() - 0.5) * this.shakeIntensity;
+                    this.ctx.translate(dx, dy);
+                }
+
+                // Render Dynamic Ambient Background Centerfield Grid Map Line Elements
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+                this.ctx.lineWidth = 4;
+                this.ctx.setLineDash([14, 14]);
+                this.ctx.beginPath();
+                this.ctx.moveTo(Config.virtualWidth / 2, 0);
+                this.ctx.lineTo(Config.virtualWidth / 2, Config.virtualHeight);
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+
+                if (this.state === States.PLAYING) {
+                    // Render Paddle: Player (Fixed: direct hex strings)
+                    this.ctx.shadowBlur = 16;
+                    this.ctx.shadowColor = '#00f0ff';
+                    this.ctx.fillStyle = '#00f0ff';
+                    this.ctx.fillRect(20, this.playerY, Config.paddleWidth, Config.paddleHeight);
+
+                    // Render Paddle: AI (Fixed: direct hex strings)
+                    this.ctx.shadowBlur = 16;
+                    this.ctx.shadowColor = '#ff0055';
+                    this.ctx.fillStyle = '#ff0055';
+                    this.ctx.fillRect(Config.virtualWidth - Config.paddleWidth - 20, this.aiY, Config.paddleWidth, Config.paddleHeight);
+
+                    // Render Core Ball Object Structure
+                    this.ctx.shadowBlur = 12;
+                    this.ctx.shadowColor = '#ffffff';
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.ball.x + Config.ballSize/2, this.ball.y + Config.ballSize/2, Config.ballSize/2, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+
+                // Draw Active Visual Particles
+                this.ctx.shadowBlur = 8;
+                for (let i = 0; i < this.particles.length; i++) {
+                    const p = this.particles[i];
+                    this.ctx.shadowColor = p.color;
+                    this.ctx.fillStyle = p.color;
+                    this.ctx.globalAlpha = p.alpha;
+                    this.ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+
+                this.ctx.restore();
+
+                // Frame Overlay Screen Flash Engine Append Step
+                if (this.flashIntensity > 0) {
+                    this.ctx.fillStyle = `rgba(255, 255, 255, ${this.flashIntensity})`;
+                    this.ctx.fillRect(0, 0, Config.virtualWidth, Config.virtualHeight);
+                }
+            }
+
+            loop(timestamp) {
+                let dt = timestamp - this.lastTime;
+                if (dt > 100) dt = 16.66; // Loop safety normalization guard clamp step
+                this.lastTime = timestamp;
+
+                this.update(dt);
+                this.draw();
+
+                requestAnimationFrame((t) => this.loop(t));
+            }
+        }
+
+        // Initialize Native Client Execution on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            new Game();
+        });
+    </script>
+</body>
+</html>
